@@ -1,46 +1,28 @@
-# from re import I
-# from turtle import color
-# from cgi import test
-import cv2#, platform,time
-# from cv2 import waitKey
-# from matplotlib import markers
+
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-# import matplotlib.image as mpimg
-# from PIL import Image 
-# from scipy import ndimage
 
 def asymetrie(filename,r,seuil):
     benin=False
 
-    plt.figure(1)
     I=cv2.imread(filename,0)#.astype(float)
-    plt.subplot(221)
-    #prétraitement de l'image
-    plt.imshow(cv2.cvtColor(I,cv2.COLOR_BGR2RGB))
-    plt.title('image originale')
     ret,thresh1=cv2.threshold(I,seuil,255,cv2.THRESH_BINARY)
-    plt.subplot(222)
-    plt.imshow(cv2.cvtColor(thresh1,cv2.COLOR_BGR2RGB))
-    plt.title('image seuillée')
 
     S=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(9,9))
 
     I_open=cv2.dilate(cv2.erode(thresh1,S),S)
-    plt.subplot(223)
-    plt.imshow(cv2.cvtColor(I_open,cv2.COLOR_BGR2RGB))
-    plt.title('image après ouverture')
-    #afin d'avoir le bon type
+
     TYPE=type(I)
 
     IMAGE=I_open.astype(TYPE)
     IMAGE2=I_open
-    #partie snake
 
+    ###Snake Algorithm
     Lx, Ly = np.shape(IMAGE2)
 
     # %%
-    ###Creation du snake###
+    ###Snake's Creation###
     centre=[int(Ly/2),int(Lx/2)]
     rayon=min(int((Lx-5)/2), int((Ly-5)/2))/r
 
@@ -52,67 +34,36 @@ def asymetrie(filename,r,seuil):
         theta = i*pas
         snakeX = np.append(snakeX, int(centre[0] + rayon * np.cos(theta)))
         snakeY = np.append(snakeY, int(centre[1] + rayon * np.sin(theta)))
-    # print(snakeX.shape)
     c = np.zeros((K,1,2))
-    # print(c.shape)
     c[:,:,0] = snakeX.reshape((K,1))
     c[:,:,1] = snakeY.reshape((K,1))
-    #c = np.concatenate((snakeX.reshape((K,1)),snakeY.reshape((K,1))),axis=2)
-    # print(c[:,0,0])
     contour_list = []
     contour_list.append(c.astype(int))
     snake = cv2.drawContours(image=cv2.cvtColor(IMAGE2, cv2.COLOR_GRAY2BGR),contours=contour_list, contourIdx=-1, color=(255, 0, 0), thickness=1,lineType=cv2.LINE_AA)
-    plt.imshow(snake)
-    plt.show()
 
 
-
-    # %%
-    ### Parametres ###
+    ### Parameters ###
     alpha = 3
     beta = 0.1
     gamma = 1.2
 
-    # %% [markdown]
-    # #### On défini les matrices pour les opérateurs
-    # La matrice `D1` correspond à une approximation de la dérivée par différence finies. La matrice `D2` correspond à une dérivée seconde et `D4` à une dérivée quatrième.
-
-    # %%
-    ###Creation de D2, D4, D et A###
     Id = np.identity(K)
     D1 = np.roll(Id, 1, axis=-1) + Id*(0) - np.roll(Id,-1, axis=1)
     D2 = np.roll(Id, -1, axis=1) + Id*(-2) + np.roll(Id,1, axis=1)
     D4 = (np.roll(Id, -1, axis=1) + np.roll(Id,1, axis=1))*-4 + (np.roll(Id, -2, axis=1) + np.roll(Id,2, axis=1)) + Id*(6)
     D = alpha*D2 - beta*D4
     A = np.linalg.inv(Id - D)
-    #logging.info('Operators generated')
 
-    # %%
-    # Le Gradient
     [Gx,Gy] = np.gradient(IMAGE2.astype(float))
-    plt.figure()
-    plt.subplot(1,3,1)
-    plt.imshow(Gx)
-    plt.subplot(1,3,2)
-    plt.imshow(Gy)
     Gx_norm = Gx/np.max(Gx)
     Gy_norm = Gy/np.max(Gy)
     NormeGrad = np.square(Gx_norm)+np.square(Gy_norm)
 
-    plt.subplot(1,3,3)
-    plt.imshow(NormeGrad,'gray')
-    plt.show()
-    #NormeGrad = NormeGrad*20
-    # Gradient de la norme 
     [GGx,GGy] = np.gradient(NormeGrad.astype(float))
 
-    #logging.info('Gradient computed')
-
-    # %%
-    # Algo ITERATIF
+    # Iterative algorithm
     limite = 3000
     iteration = 0
-    nbfigure = 1
 
     Energie = list()
     energie_ela = list()
@@ -123,18 +74,16 @@ def asymetrie(filename,r,seuil):
     Xn = snakeX
     Yn = snakeY
     MEMORY.append([Xn,Yn])
-    #logging.info('Algorithm initialized')
 
-    # %%
     flag = True
     while flag or (iteration < limite):
-        # itération du SNAKE
+        # Snake's iterations
         Xn1 = np.dot(A, Xn + gamma*GGx[Yn.astype(int),Xn.astype(int)] )
         Yn1 = np.dot(A, Yn + gamma*GGy[Yn.astype(int),Xn.astype(int)] )     
         Xn = Xn1
         Yn = Yn1   
         MEMORY.append([Xn,Yn])
-        # Calcul de l'energie
+        # Energy Computed
         ELA = 0
         COURB  = 0
         EXT = 0
@@ -151,34 +100,23 @@ def asymetrie(filename,r,seuil):
         energie_courb.append(COURB)
         energie_ela.append(ELA)
 
-        # Flag de sortie
-        # 
-        # TODO : 
-        #   Calculer energie sur fenetre glissante pour flag de sortie afin de lisser les variations
-        # if iteration > 200:
-        #     nbSplit = iteration // 50
-        #     EnerSplit = np.split(Energie, nbSplit)
-        #     e1 = EnerSplit[-1]
-        #     e2 = EnerSplit[-2]
         if (abs(Energie[iteration]-Energie[iteration-1])/Energie[iteration]<10):
             flag = False
-
         
-        # Affichage
-        if iteration % 10 == 0:
-            c = np.zeros((K,1,2))
-            c[:,:,0] = Xn1.reshape((K,1))
-            c[:,:,1] = Yn1.reshape((K,1))
-            contour_list = []
-            contour_list.append(c.astype(int))
-            snake = cv2.drawContours(image=cv2.cvtColor(IMAGE2, cv2.COLOR_GRAY2BGR),contours=contour_list, contourIdx=-1, color=(255, 0, 0), thickness=1,lineType=cv2.LINE_AA)
-            # Sauvegarde des images pour faire l'animation
-            #filename = f"img_{iteration:05d}.png"
+        # if iteration % 10 == 0:
+        #     c = np.zeros((K,1,2))
+        #     c[:,:,0] = Xn1.reshape((K,1))
+        #     c[:,:,1] = Yn1.reshape((K,1))
+        #     contour_list = []
+        #     contour_list.append(c.astype(int))
+        #     snake = cv2.drawContours(image=cv2.cvtColor(IMAGE2, cv2.COLOR_GRAY2BGR),contours=contour_list, contourIdx=-1, color=(255, 0, 0), thickness=1,lineType=cv2.LINE_AA)
+        #     # Sauvegarde des images pour faire l'animation
+        #     #filename = f"img_{iteration:05d}.png"
             
-            #cv2.imwrite(filename, snake)
+        #     #cv2.imwrite(filename, snake)
 
-        # Fin de la boucle
-        iteration += 1
+        # # Fin de la boucle
+        # iteration += 1
 
 
     # %%
